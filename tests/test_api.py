@@ -590,6 +590,57 @@ class TestInvalid(util.TestCase):
         with self.assertRaises(TypeError):
             sv.filter('div', "not a tag", flags=flags)
 
+    def test_excessive_selectors(self):
+        """Test excessive selectors."""
+
+        # Build a very large selector string: "a,a,a,...,a".
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(selector)
+
+    def test_excessive_custom_selectors(self):
+        """Test excessive custom selectors."""
+
+        # Build a very large selector string: "a,a,a,...,a".
+        count = 10000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile('div:--custom', custom={':--custom': selector})
+
+    def test_excessive_custom_and_normal_selectors(self):
+        """Test excessive custom and normal selectors."""
+
+        count = 5000
+        selector = ",".join("a" for _ in range(count))
+
+        # Compile the selector
+        with self.assertRaises(ValueError):
+            sv.compile(':is({}):--custom'.format(selector), custom={':--custom': selector})
+
+    def test_excessive_nested_custom_selectors(self):
+        """Test custom selectors that reference each other with exponential amplification."""
+
+        # Each alias references the one below it twice, so a tiny selector string expands
+        # into a selector tree whose match cost doubles with every level.
+        custom = {':--level0': 'a'}
+        for level in range(1, 32):
+            custom[':--level{}'.format(level)] = ':--level{0},:--level{0}'.format(level - 1)
+
+        with self.assertRaises(ValueError):
+            sv.compile(':--level31', custom=custom)
+
+    def test_selectors_under_limit_still_compile(self):
+        """Test that a large, but reasonable, selector is still accepted."""
+
+        selector = ",".join("a" for _ in range(1000))
+
+        self.assertEqual(len(sv.compile(selector).selectors), 1000)
+
 
 class TestSyntaxErrorReporting(util.TestCase):
     """Test reporting of syntax errors."""
